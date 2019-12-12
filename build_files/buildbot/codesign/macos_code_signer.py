@@ -199,7 +199,7 @@ class MacOSCodeSigner(BaseCodeSigner):
             logger_server.info('Running codesign routines on bundle %s',
                                bundle_name)
 
-            self.codesign_remove_signature(bundle)
+            # It is not possible to remove signature from DMG.
             self.codesign_file(bundle)
 
             signed_bundles.add(bundle_name)
