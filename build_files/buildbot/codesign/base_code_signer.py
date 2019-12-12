@@ -45,6 +45,7 @@
 import abc
 import logging
 import shutil
+import subprocess
 import time
 import zipfile
 
@@ -400,7 +401,7 @@ class BaseCodeSigner(metaclass=abc.ABCMeta):
     # server from other platforms (for example, to test that macOS code signer
     # does what it is supposed to after doing a refactor on Linux).
 
-    # TODO(sergey): What is the typo annotation for the command?
+    # TODO(sergey): What is the type annotation for the command?
     def run_command_or_mock(self, command, platform: util.Platform) -> None:
         """
         Run given command if current platform matches given one
@@ -412,3 +413,4 @@ class BaseCodeSigner(metaclass=abc.ABCMeta):
             logger_server.info(
                 f'Will run command for {platform}: {command}')
             return
+        subprocess.run(command)

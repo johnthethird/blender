@@ -110,7 +110,7 @@ class MacOSCodeSigner(BaseCodeSigner):
         """
 
         logger_server.info(
-            'Removing codesign signature from  %s...', file.relative_filepath)
+            'Removing codesign signature from %s...', file.relative_filepath)
 
         command = ['codesign', '--remove-signature', file.absolute_filepath]
         self.run_command_or_mock(command, util.Platform.MACOS)
@@ -124,13 +124,13 @@ class MacOSCodeSigner(BaseCodeSigner):
         """
 
         logger_server.info(
-            'Codesigning  %s...', file.relative_filepath)
+            'Codesigning %s...', file.relative_filepath)
 
         entitlements_file = self.config.MACOS_ENTITLEMENTS_FILE
         command = ['codesign',
                    '--timestamp',
                    '--options', 'runtime',
-                   f'--entitlements="{entitlements_file}"',
+                   f'--entitlements={entitlements_file}',
                    '--sign', self.config.MACOS_CODESIGN_IDENTITY,
                    file.absolute_filepath]
         self.run_command_or_mock(command, util.Platform.MACOS)
@@ -186,6 +186,7 @@ class MacOSCodeSigner(BaseCodeSigner):
         """
 
         signed_bundles = set()
+        extra_files = []
 
         for file in files:
             if not is_file_from_bundle(file):
@@ -202,6 +203,22 @@ class MacOSCodeSigner(BaseCodeSigner):
             self.codesign_file(bundle)
 
             signed_bundles.add(bundle_name)
+
+            # Codesign on a bundle adds an extra folder with information.
+            # It needs to be compied to the source.
+            code_signature_directory = \
+                bundle.absolute_filepath / 'Contents' / '_CodeSignature'
+            code_signature_files = \
+                AbsoluteAndRelativeFileName.recursively_from_directory(
+                    code_signature_directory)
+            for code_signature_file in code_signature_files:
+                bundle_relative_file = AbsoluteAndRelativeFileName(
+                    bundle.base_dir,
+                    code_signature_directory /
+                    code_signature_file.relative_filepath)
+                extra_files.append(bundle_relative_file)
+
+        files.extend(extra_files)
 
         return True
 
