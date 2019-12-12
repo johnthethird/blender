@@ -52,6 +52,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Iterable, List
 
+import codesign.util as util
+
 from codesign.absolute_and_relative_filename import AbsoluteAndRelativeFileName
 from codesign.archive_with_indicator import ArchiveWithIndicator
 
@@ -133,6 +135,9 @@ class BaseCodeSigner(metaclass=abc.ABCMeta):
     # This archive is created by the code signing server.
     signed_archive_info: ArchiveWithIndicator
 
+    # Platform the code is currently executing on.
+    platform: util.Platform
+
     def __init__(self, config):
         self.config = config
 
@@ -147,6 +152,8 @@ class BaseCodeSigner(metaclass=abc.ABCMeta):
         self.signed_storage_dir = absolute_shared_storage_dir / 'signed'
         self.signed_archive_info = ArchiveWithIndicator(
             self.signed_storage_dir, 'signed_files.zip', 'ready.stamp')
+
+        self.platform = util.get_current_platform()
 
     """
     General note on cleanup environment functions.
@@ -383,3 +390,25 @@ class BaseCodeSigner(metaclass=abc.ABCMeta):
             logger_server.info(
                 'Got signing request, beging signign procedure.')
             self.run_signing_pipeline()
+
+    ############################################################################
+    # Command executing.
+    #
+    # Abstracted to a degree that allows to run commands from a foreign
+    # platform.
+    # The goal with this is to allow performing dry-run tests of code signer
+    # server from other platforms (for example, to test that macOS code signer
+    # does what it is supposed to after doing a refactor on Linux).
+
+    # TODO(sergey): What is the typo annotation for the command?
+    def run_command_or_mock(self, command, platform: util.Platform) -> None:
+        """
+        Run given command if current platform matches given one
+
+        If the platform is different then it will only be printed allowing
+        to verify logic of the code signing process.
+        """
+        if platform != self.platform:
+            logger_server.info(
+                f'Will run command for {platform}: {command}')
+            return
