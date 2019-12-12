@@ -47,7 +47,7 @@ import logging
 import shutil
 import subprocess
 import time
-import zipfile
+import tarfile
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -67,14 +67,14 @@ logger_server = logger.getChild('server')
 def pack_files(files: Iterable[AbsoluteAndRelativeFileName],
                archive_filepath: Path) -> None:
     """
-    Create zip archive from given files for the signing pipeline.
+    Create tar archive from given files for the signing pipeline.
     Is used by buildbot worker to create an archive of files which are to be
     signed, and by signing server to send signed files back to the worker.
     """
-    with zipfile.ZipFile(archive_filepath, 'w') as zip_file_handle:
+    with tarfile.TarFile.open(archive_filepath, 'w') as tar_file_handle:
         for file_info in files:
-            zip_file_handle.write(file_info.absolute_filepath,
-                                  arcname=file_info.relative_filepath)
+            tar_file_handle.add(file_info.absolute_filepath,
+                                arcname=file_info.relative_filepath)
 
 
 def extract_files(archive_filepath: Path,
@@ -85,8 +85,8 @@ def extract_files(archive_filepath: Path,
 
     # TODO(sergey): Verify files in the archive have relative path.
 
-    with zipfile.ZipFile(archive_filepath, mode='r') as zip_file_handle:
-        zip_file_handle.extractall(path=extraction_dir)
+    with tarfile.TarFile.open(archive_filepath, mode='r') as tar_file_handle:
+        tar_file_handle.extractall(path=extraction_dir)
 
 
 class BaseCodeSigner(metaclass=abc.ABCMeta):
@@ -147,12 +147,12 @@ class BaseCodeSigner(metaclass=abc.ABCMeta):
         # Unsigned (signing server input) configuration.
         self.unsigned_storage_dir = absolute_shared_storage_dir / 'unsigned'
         self.unsigned_archive_info = ArchiveWithIndicator(
-            self.unsigned_storage_dir, 'unsigned_files.zip', 'ready.stamp')
+            self.unsigned_storage_dir, 'unsigned_files.tar', 'ready.stamp')
 
         # Signed (signing server output) configuration.
         self.signed_storage_dir = absolute_shared_storage_dir / 'signed'
         self.signed_archive_info = ArchiveWithIndicator(
-            self.signed_storage_dir, 'signed_files.zip', 'ready.stamp')
+            self.signed_storage_dir, 'signed_files.tar', 'ready.stamp')
 
         self.platform = util.get_current_platform()
 
