@@ -19,7 +19,9 @@
 # <pep8 compliant>
 
 import logging
+import re
 import subprocess
+import time
 
 from pathlib import Path
 from typing import List
@@ -87,9 +89,27 @@ def is_bundle_executable_file(file: AbsoluteAndRelativeFileName) -> bool:
     return True
 
 
+def xcrun_field_value_from_output(field: str, output: str) -> str:
+    """
+    Get value of a given field from xcrun output.
+
+    If field is not found empty string is returned.
+    """
+
+    field_prefix = field + ': '
+    for line in output.splitlines():
+        line = line.strip()
+        if line.startswith(field_prefix):
+            return line[len(field_prefix):]
+    return ''
+
+
 class MacOSCodeSigner(BaseCodeSigner):
     def check_file_is_to_be_signed(
             self, file: AbsoluteAndRelativeFileName) -> bool:
+        if file.relative_filepath.name.startswith('.'):
+            return False
+
         if is_bundle_executable_file(file):
             return True
 
@@ -99,6 +119,9 @@ class MacOSCodeSigner(BaseCodeSigner):
             return True
 
         return file.relative_filepath.suffix in EXTENSIONS_TO_BE_SIGNED
+
+    ############################################################################
+    # Codesign.
 
     def codesign_remove_signature(
             self, file: AbsoluteAndRelativeFileName) -> None:
@@ -222,6 +245,161 @@ class MacOSCodeSigner(BaseCodeSigner):
 
         return True
 
+    ############################################################################
+    # Notarization.
+
+    def notarize_get_bundle_id(self, file: AbsoluteAndRelativeFileName) -> str:
+        """
+        Get bundle ID which will be used to notarize DMG
+        """
+        name = file.relative_filepath.name
+        app_name = name.split('-', 2)[0].lower()
+
+        # TODO(sergey): Consider using "alpha" for buildbot builds.
+        return f'org.blenderfoundation.{app_name}.release'
+
+    def notarize_request(self, file) -> str:
+        """
+        Request notarization of the given file.
+
+        Returns UUID of the notarization request. If error occurred None is
+        returned instead of UUID.
+        """
+
+        bundle_id = self.notarize_get_bundle_id(file)
+        logger_server.info('Bundle ID: %s', bundle_id)
+
+        logger_server.info('Submitting file to the notarial office.')
+        command = [
+            'xcrun', 'altool', '--notarize-app', '--verbose',
+            '-f', file.absolute_filepath,
+            '--primary-bundle-id', bundle_id,
+            '--username', self.config.MACOS_XCRUN_USERNAME,
+            '--password', self.config.MACOS_XCRUN_PASSWORD]
+
+        output = self.check_output_or_mock(
+            command, util.Platform.MACOS, allow_nonzero_exit_code=True)
+
+        for line in output.splitlines():
+            line = line.strip()
+            if line.startswith('RequestUUID = '):
+                request_uuid = line[14:]
+                return request_uuid
+
+            # Check whether the package has been already submitted.
+            if 'The software asset has already been uploaded.' in line:
+                request_uuid = re.sub(
+                    '.*The upload ID is ([A-Fa-f0-9\-]+).*', '\\1', line)
+                logger_server.warning(
+                    f'The package has been already submitted under UUID {request_uuid}')
+                return request_uuid
+
+        logger_server.error('xcrun command did not report RequestUUID')
+        return None
+
+    def notarize_wait_result(self, request_uuid: str) -> bool:
+        """
+        Wait for until notarial office have a reply
+        """
+
+        logger_server.info(
+            'Waiting for a result from the notarization office.')
+
+        command = ['xcrun', 'altool',
+                   '--notarization-info', request_uuid,
+                   '--username', self.config.MACOS_XCRUN_USERNAME,
+                   '--password', self.config.MACOS_XCRUN_PASSWORD]
+
+        time_start = time.monotonic()
+        timeout_in_seconds = self.config.MACOS_NOTARIZE_TIMEOUT_IN_SECONDS
+
+        while True:
+            output = self.check_output_or_mock(command, util.Platform.MACOS)
+            # Parse status and message
+            status = xcrun_field_value_from_output('Status', output)
+            status_message = xcrun_field_value_from_output(
+                'Status Message', output)
+
+            # Review status.
+            if status:
+                if status == 'success':
+                    logger_server.info(
+                        'Package successfully notarized: %s', status_message)
+                    return True
+                elif status == 'invalid':
+                    logger_server.error(
+                        'Package notarization has failed: %s', status_message)
+                    return False
+                else:
+                    logger_server.info(
+                        'Unknown notarization status %s (%s)', status, status_message)
+
+            logger_server.info('Keep waiting for notarization office.')
+            time.sleep(30)
+
+            time_slept_in_seconds = time.monotonic() - time_start
+            if time_slept_in_seconds > timeout_in_seconds:
+                logger_server.error(
+                    "Notarial office didn't reply in %f seconds.",
+                    timeout_in_seconds)
+
+    def notarize_staple(self, file: AbsoluteAndRelativeFileName) -> bool:
+        """
+        Staple notarial label on the file
+        """
+
+        logger_server.info(
+            'Waiting for a result from the notarization office.')
+
+        command = ['xcrun', 'stapler', 'staple', '-v', file.absolute_filepath]
+        self.check_output_or_mock(command, util.Platform.MACOS)
+
+        return True
+
+    def notarize_dmg(self, file: AbsoluteAndRelativeFileName) -> bool:
+        """
+        Run entire pipeline to get DMG notarized.
+        """
+        logger_server.info('Begin notarization routines on %s',
+                           file.relative_filepath)
+
+        # Submit file for notarization.
+        request_uuid = self.notarize_request(file)
+        if not request_uuid:
+            return False
+        logger_server.info('Received Request UUID: %s', request_uuid)
+
+        # Wait for the status from the notarization office.
+        if not self.notarize_wait_result(request_uuid):
+            return False
+
+        # Staple.
+        if not self.notarize_staple(file):
+            return False
+
+        return True
+
+    def notarize_all_dmg(
+            self, files: List[AbsoluteAndRelativeFileName]) -> bool:
+        """
+        Notarize all DMG images from the input.
+
+        Images are supposed to be codesigned already.
+        """
+        for file in files:
+            if not file.relative_filepath.name.endswith('.dmg'):
+                continue
+            if not self.check_file_is_to_be_signed(file):
+                continue
+
+            if not self.notarize_dmg(file):
+                return False
+
+        return True
+
+    ############################################################################
+    # Entry point.
+
     def sign_all_files(self, files: List[AbsoluteAndRelativeFileName]) -> None:
         # TODO(sergey): Handle errors somehow.
 
@@ -229,4 +407,7 @@ class MacOSCodeSigner(BaseCodeSigner):
             return
 
         if not self.codesign_bundles(files):
+            return
+
+        if not self.notarize_all_dmg(files):
             return

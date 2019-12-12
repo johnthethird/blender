@@ -409,8 +409,43 @@ class BaseCodeSigner(metaclass=abc.ABCMeta):
         If the platform is different then it will only be printed allowing
         to verify logic of the code signing process.
         """
+
+        if platform != self.platform or True:
+            logger_server.info(
+                f'Will run command for {platform}: {command}')
+            return
+
+        logger_server.info(f'Running command: {command}')
+        subprocess.run(command)
+
+    # TODO(sergey): What is the type annotation for the command?
+    def check_output_or_mock(self, command,
+                             platform: util.Platform,
+                             allow_nonzero_exit_code=False) -> str:
+        """
+        Run given command if current platform matches given one
+
+        If the platform is different then it will only be printed allowing
+        to verify logic of the code signing process.
+
+        If allow_nonzero_exit_code is truth then the output will be returned
+        even if application quit with non-zero exit code.
+        Otherwise an subprocess.CalledProcessError exception will be raised
+        in such case.
+        """
+
         if platform != self.platform:
             logger_server.info(
                 f'Will run command for {platform}: {command}')
             return
-        subprocess.run(command)
+
+        if allow_nonzero_exit_code:
+            process = subprocess.Popen(command,
+                                       stdout=subprocess.PIPE,
+                                       stderr=subprocess.STDOUT)
+            output = process.communicate()[0]
+            return output.decode()
+
+        logger_server.info(f'Running command: {command}')
+        return subprocess.check_output(
+            command, stderr=subprocess.STDOUT).decode()

@@ -50,6 +50,15 @@ MACOS_ENTITLEMENTS_FILE = \
 # NOTE: This identity is just an example from release/darwin/README.txt.
 MACOS_CODESIGN_IDENTITY = 'AE825E26F12D08B692F360133210AF46F4CF7B97'
 
+# User name (Apple ID) which will be used to request notarization.
+MACOS_XCRUN_USERNAME = 'me@example.com'
+
+# One-time application password which will be used to request notarization.
+MACOS_XCRUN_PASSWORD = '@keychain:altool-password'
+
+# Timeout in seconds within which the notarial office is supposed to reply.
+MACOS_NOTARIZE_TIMEOUT_IN_SECONDS = 60 * 60
+
 ################################################################################
 # Windows-specific configuration.
 
