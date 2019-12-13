@@ -25,7 +25,7 @@ import sys
 
 from pathlib import Path
 
-import util
+import codesign.util as util
 
 from codesign.config_common import *
 
@@ -34,6 +34,8 @@ if platform == util.Platform.LINUX:
     SHARED_STORAGE_DIR = Path('/data/codesign')
 elif platform == util.Platform.WINDOWS:
     SHARED_STORAGE_DIR = Path('Z:\\codesign')
+elif platform == util.Platform.MACOS:
+    SHARED_STORAGE_DIR = Path('/Users/sergey/Developer/blender/codesign')
 
 # https://docs.python.org/3/library/logging.config.html#configuration-dictionary-schema
 LOGGING = {

@@ -27,7 +27,7 @@ from pathlib import Path
 
 from codesign.config_common import *
 
-CODESIGN_DIRECTORY = Path(__file__).parent
+CODESIGN_DIRECTORY = Path(__file__).absolute().parent
 BLENDER_GIT_ROOT_DIRECTORY = CODESIGN_DIRECTORY.parent.parent.parent
 
 ################################################################################

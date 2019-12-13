@@ -410,7 +410,7 @@ class BaseCodeSigner(metaclass=abc.ABCMeta):
         to verify logic of the code signing process.
         """
 
-        if platform != self.platform or True:
+        if platform != self.platform:
             logger_server.info(
                 f'Will run command for {platform}: {command}')
             return
