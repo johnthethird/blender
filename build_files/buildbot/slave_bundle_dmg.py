@@ -156,6 +156,13 @@ def copy_app_bundles_to_directory(app_bundles: List[Path],
         shutil.copytree(app_bundle, directory / app_bundle.name)
 
 
+def get_main_app_bundle(app_bundles: List[Path]) -> Path:
+    """
+    Get application bundle main for the installation
+    """
+    return app_bundles[0]
+
+
 def create_dmg_image(app_bundles: List[Path],
                      dmg_filepath: Path,
                      volume_name: str) -> None:
@@ -239,12 +246,12 @@ def eject_volume(volume_name: str) -> None:
     mount_output = subprocess.check_output(['mount']).decode()
     device = ''
     for line in mount_output.splitlines():
+        if f'on {mount_directory_str} (' not in line:
+            continue
         tokens = line.split(' ', 3)
         if len(tokens) < 3:
             continue
         if tokens[1] != 'on':
-            continue
-        if tokens[2] != mount_directory_str:
             continue
         if device:
             raise Exception(
@@ -293,15 +300,17 @@ def create_applications_link(mount_directory: Path) -> None:
 
 def run_applescript(applescript: Path,
                     volume_name: str,
+                    app_bundles: List[Path],
                     background_image_filepath: Path) -> None:
     """
     Run given applescript to adjust look and feel of the DMG
     """
 
+    main_app_bundle = get_main_app_bundle(app_bundles)
+
     with NamedTemporaryFile(
             mode='w', suffix='.applescript') as temp_applescript:
         print('Adjusting applescript for volume name...')
-        mount_directory = get_mount_directory_for_volume_name(volume_name)
         # Adjust script to the specific volume name.
         with open(applescript, mode='r') as input:
             for line in input.readlines():
@@ -319,6 +328,7 @@ def run_applescript(applescript: Path,
                         line = re.sub('to file ".*"',
                                       f'to file "{background_image_short}"',
                                       line)
+                line = line.replace('blender.app', main_app_bundle.name)
                 temp_applescript.write(line)
 
         temp_applescript.flush()
@@ -415,7 +425,8 @@ def create_final_dmg(app_bundles: List[Path],
 
     copy_background_if_needed(background_image_filepath, mount_directory)
     create_applications_link(mount_directory)
-    run_applescript(applescript, volume_name, background_image_filepath)
+    run_applescript(applescript, volume_name, app_bundles,
+                    background_image_filepath)
 
     print('Ejecting read-write DMG image...')
     eject_volume(volume_name)
@@ -485,7 +496,9 @@ def get_volume_name_from_dmg_filepath(dmg_filepath: Path) -> str:
     """
 
     tokens = dmg_filepath.name.split('-')
-    return tokens[0].capitalize()
+    words = tokens[0].split()
+
+    return ' '.join(word.capitalize() for word in words)
 
 
 def get_volume_name(requested_volume_name: str,

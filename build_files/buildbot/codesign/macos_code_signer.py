@@ -121,9 +121,22 @@ class MacOSCodeSigner(BaseCodeSigner):
 
         mode = file.absolute_filepath.lstat().st_mode
         if mode & stat.S_IXUSR != 0:
-            return True
+            file_output = subprocess.check_output(
+                ("file", file.absolute_filepath)).decode()
+            if "64-bit executable" in file_output:
+                return True
 
         return file.relative_filepath.suffix in EXTENSIONS_TO_BE_SIGNED
+
+    def collect_files_to_sign(self, path: Path) \
+            -> List[AbsoluteAndRelativeFileName]:
+        # Include all files when signing app or dmg bundle: all the files are
+        # needed to do valid signature of bundle.
+        if path.name.endswith('.app'):
+            return AbsoluteAndRelativeFileName.recursively_from_directory(path)
+        if path.name.endswith('.dmg') and path.is_dir():
+            return AbsoluteAndRelativeFileName.recursively_from_directory(path)
+        return super().collect_files_to_sign(path)
 
     ############################################################################
     # Codesign.
