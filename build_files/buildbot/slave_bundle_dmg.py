@@ -495,7 +495,7 @@ def get_volume_name_from_dmg_filepath(dmg_filepath: Path) -> str:
     Will use first part of the DMG file name prior to dash.
     """
 
-    tokens = dmg_filepath.name.split('-')
+    tokens = dmg_filepath.stem.split('-')
     words = tokens[0].split()
 
     return ' '.join(word.capitalize() for word in words)
