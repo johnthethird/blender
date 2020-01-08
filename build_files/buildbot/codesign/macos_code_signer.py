@@ -361,6 +361,8 @@ class MacOSCodeSigner(BaseCodeSigner):
                     logger_server.error(
                         'Package notarization has failed: %s', status_message)
                     return False
+                elif status == 'in progress':
+                    pass
                 else:
                     logger_server.info(
                         'Unknown notarization status %s (%s)', status, status_message)
