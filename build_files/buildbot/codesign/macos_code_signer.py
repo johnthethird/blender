@@ -284,7 +284,10 @@ class MacOSCodeSigner(BaseCodeSigner):
         app_name = name.split('-', 2)[0].lower()
 
         app_name_words = app_name.split()
-        app_name_id = ''.join(word.capitalize() for word in app_name_words)
+        if len(app_name_words) > 1:
+            app_name_id = ''.join(word.capitalize() for word in app_name_words)
+        else:
+            app_name_id = app_name_words[0]
 
         # TODO(sergey): Consider using "alpha" for buildbot builds.
         return f'org.blenderfoundation.{app_name_id}.release'
