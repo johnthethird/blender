@@ -20,6 +20,7 @@
 
 import logging
 import re
+import stat
 import subprocess
 import time
 
@@ -116,6 +117,10 @@ class MacOSCodeSigner(BaseCodeSigner):
         base_name = file.relative_filepath.name
         if any(base_name.startswith(prefix)
                for prefix in NAME_PREFIXES_TO_BE_SIGNED):
+            return True
+
+        mode = file.absolute_filepath.lstat().st_mode
+        if mode & stat.S_IXUSR != 0:
             return True
 
         return file.relative_filepath.suffix in EXTENSIONS_TO_BE_SIGNED
