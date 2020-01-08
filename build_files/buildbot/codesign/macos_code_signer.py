@@ -281,10 +281,13 @@ class MacOSCodeSigner(BaseCodeSigner):
         Get bundle ID which will be used to notarize DMG
         """
         name = file.relative_filepath.name
-        app_name = name.split('-', 2)[0].lower().replace(' ', '_')
+        app_name = name.split('-', 2)[0].lower()
+
+        app_name_words = app_name.split()
+        app_name_id = ''.join(word.capitalize() for word in app_name_words)
 
         # TODO(sergey): Consider using "alpha" for buildbot builds.
-        return f'org.blenderfoundation.{app_name}.release'
+        return f'org.blenderfoundation.{app_name_id}.release'
 
     def notarize_request(self, file) -> str:
         """
