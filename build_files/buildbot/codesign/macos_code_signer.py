@@ -134,8 +134,18 @@ class MacOSCodeSigner(BaseCodeSigner):
         # needed to do valid signature of bundle.
         if path.name.endswith('.app'):
             return AbsoluteAndRelativeFileName.recursively_from_directory(path)
-        if path.name.endswith('.dmg') and path.is_dir():
-            return AbsoluteAndRelativeFileName.recursively_from_directory(path)
+        if path.is_dir():
+            files = []
+            for child in path.iterdir():
+                if child.name.endswith('.app'):
+                    current_files = AbsoluteAndRelativeFileName.recursively_from_directory(
+                        child)
+                else:
+                    current_files = super().collect_files_to_sign(child)
+                for current_file in current_files:
+                    files.append(AbsoluteAndRelativeFileName(
+                        path, current_file.absolute_filepath))
+            return files
         return super().collect_files_to_sign(path)
 
     ############################################################################
