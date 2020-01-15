@@ -348,7 +348,8 @@ class MacOSCodeSigner(BaseCodeSigner):
         timeout_in_seconds = self.config.MACOS_NOTARIZE_TIMEOUT_IN_SECONDS
 
         while True:
-            output = self.check_output_or_mock(command, util.Platform.MACOS)
+            output = self.check_output_or_mock(
+                command, util.Platform.MACOS, allow_nonzero_exit_code=True)
             # Parse status and message
             status = xcrun_field_value_from_output('Status', output)
             status_message = xcrun_field_value_from_output(
