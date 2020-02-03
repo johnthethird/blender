@@ -251,6 +251,8 @@ class MacOSCodeSigner(BaseCodeSigner):
                                bundle_name)
 
             # It is not possible to remove signature from DMG.
+            if bundle.relative_filepath.name.endswith('.app'):
+                self.codesign_remove_signature(bundle)
             self.codesign_file(bundle)
 
             signed_bundles.add(bundle_name)
@@ -328,6 +330,7 @@ class MacOSCodeSigner(BaseCodeSigner):
                     f'The package has been already submitted under UUID {request_uuid}')
                 return request_uuid
 
+        logger_server.error(output)
         logger_server.error('xcrun command did not report RequestUUID')
         return None
 
@@ -362,6 +365,7 @@ class MacOSCodeSigner(BaseCodeSigner):
                         'Package successfully notarized: %s', status_message)
                     return True
                 elif status == 'invalid':
+                    logger_server.error(output)
                     logger_server.error(
                         'Package notarization has failed: %s', status_message)
                     return False
