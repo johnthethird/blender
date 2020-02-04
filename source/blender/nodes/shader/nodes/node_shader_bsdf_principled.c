@@ -155,10 +155,16 @@ static int node_shader_gpu_bsdf_principled(GPUMaterial *mat,
     GPU_link(mat, "set_rgb_one", &sss_scale);
   }
 
-  /* Due to the manual effort done per config, we only optimize the most common permutations. */
+    /* Due to the manual effort done per config, we only optimize the most common permutations. */
+  /* Optimized shaders cause lag on OSX/AMD due to continual SCCompileShader calls, so disable them */
   char *node_name;
   uint flag = 0;
-  if (!use_subsurf && use_diffuse && !use_refract && !use_clear) {
+#if defined(__APPLE__)
+    static char name[] = "node_bsdf_principled";
+    node_name = name;
+    flag = GPU_MATFLAG_DIFFUSE | GPU_MATFLAG_GLOSSY | GPU_MATFLAG_REFRACT;
+#else
+    if (!use_subsurf && use_diffuse && !use_refract && !use_clear) {
     static char name[] = "node_bsdf_principled_dielectric";
     node_name = name;
     flag = GPU_MATFLAG_DIFFUSE | GPU_MATFLAG_GLOSSY;
@@ -188,6 +194,7 @@ static int node_shader_gpu_bsdf_principled(GPUMaterial *mat,
     node_name = name;
     flag = GPU_MATFLAG_DIFFUSE | GPU_MATFLAG_GLOSSY | GPU_MATFLAG_REFRACT;
   }
+#endif
 
   if (use_subsurf) {
     flag |= GPU_MATFLAG_SSS;
